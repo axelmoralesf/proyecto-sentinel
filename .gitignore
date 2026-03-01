@@ -3,3 +3,6 @@
 *.tfstate.*
 *.tfvars
 *.pem
+sentinel-api/venv/
+sentinel-api/__pycache__/
+*.pyc
