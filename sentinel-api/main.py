@@ -2,11 +2,16 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from pydantic import BaseModel
 import datetime
+import os
 
-app = FastAPI(title="Sentinel API", description="API de Telemetría y Seguridad")
+app = FastAPI(title="Sentinel API", description="API de Telemetría y Seguridad Multi-Agente")
 
 # --- SEGURIDAD: API Key ---
-API_KEY = "super_secret_key_123" 
+API_KEY = os.getenv("SENTINEL_API_KEY")
+
+if not API_KEY:
+    raise RuntimeError("La variable de entorno SENTINEL_API_KEY no está configurada. Por favor, configúrala antes de iniciar el servidor.")
+
 api_key_header = APIKeyHeader(name="X-API-Key")
 
 def get_api_key(api_key: str = Depends(api_key_header)):
@@ -17,10 +22,12 @@ def get_api_key(api_key: str = Depends(api_key_header)):
         )
     return api_key
 
-# --- VALIDACIÓN: Lo que esperamos recibir ---
+# --- VALIDACIÓN: Datos a recibir ---
 class TelemetryData(BaseModel):
     server_name: str
     cpu_usage: float
+    ram_usage: float      
+    gpu_usage: float      
     failed_ssh_attempts: int
 
 # --- ENDPOINTS ---
@@ -31,8 +38,8 @@ def health_check():
 
 @app.post("/telemetry")
 def receive_telemetry(data: TelemetryData, api_key: str = Depends(get_api_key)):
-    """Endpoint privado para recibir alertas de los servidores"""
-    # Aquí es donde, en el mundo real, guardaríamos esto en MongoDB
-    print(f"\n[ALERTA] Servidor: {data.server_name} | Intentos SSH fallidos: {data.failed_ssh_attempts}\n")
+    """Endpoint privado para recibir métricas de los agentes"""
+    # En la Fase 4, cambiaremos este print por la conexión a Cassandra
+    print(f"\n[TELEMETRÍA - {data.server_name}] CPU: {data.cpu_usage}% | RAM: {data.ram_usage}% | GPU: {data.gpu_usage}% | SSH Fails: {data.failed_ssh_attempts}\n")
     
-    return {"status": "success", "message": "Datos procesados correctamente", "data": data}
+    return {"status": "success", "message": "Telemetría recibida correctamente", "data": data}
