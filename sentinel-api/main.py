@@ -1,45 +1,31 @@
-from fastapi import FastAPI, Depends, HTTPException, status
-from fastapi.security import APIKeyHeader
-from pydantic import BaseModel
+from fastapi import FastAPI
+from contextlib import asynccontextmanager
 import datetime
-import os
 
-app = FastAPI(title="Sentinel API", description="API de Telemetría y Seguridad Multi-Agente")
+# Importamos los módulos locales
+from database import init_db, close_db
+from routers import telemetry
 
-# --- SEGURIDAD: API Key ---
-API_KEY = os.getenv("SENTINEL_API_KEY")
-
-if not API_KEY:
-    raise RuntimeError("La variable de entorno SENTINEL_API_KEY no está configurada. Por favor, configúrala antes de iniciar el servidor.")
-
-api_key_header = APIKeyHeader(name="X-API-Key")
-
-def get_api_key(api_key: str = Depends(api_key_header)):
-    if api_key != API_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Acceso Denegado: API Key inválida"
-        )
-    return api_key
-
-# --- VALIDACIÓN: Datos a recibir ---
-class TelemetryData(BaseModel):
-    server_name: str
-    cpu_usage: float
-    ram_usage: float      
-    gpu_usage: float      
-    failed_ssh_attempts: int
-
-# --- ENDPOINTS ---
-@app.get("/health")
-def health_check():
-    """Endpoint público para saber si el servidor está vivo"""
-    return {"status": "ok", "timestamp": datetime.datetime.now().isoformat()}
-
-@app.post("/telemetry")
-def receive_telemetry(data: TelemetryData, api_key: str = Depends(get_api_key)):
-    """Endpoint privado para recibir métricas de los agentes"""
-    # En la Fase 4, cambiaremos este print por la conexión a Cassandra
-    print(f"\n[TELEMETRÍA - {data.server_name}] CPU: {data.cpu_usage}% | RAM: {data.ram_usage}% | GPU: {data.gpu_usage}% | SSH Fails: {data.failed_ssh_attempts}\n")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Al encender la API
+    try:
+        init_db()
+    except Exception as e:
+        print(f"[-] Error crítico al conectar con Cassandra: {e}")
     
-    return {"status": "success", "message": "Telemetría recibida correctamente", "data": data}
+    yield  # La API corre aquí
+    
+    # Al apagar la API
+    close_db()
+
+app = FastAPI(title="Sentinel API", description="Arquitectura Modular Multi-Agente", lifespan=lifespan)
+
+# --- REGISTRO DE RUTAS (ENDPOINTS) ---
+app.include_router(telemetry.router)
+
+# Endpoint público para monitoreo de vida (health check)
+@app.get("/health", tags=["Sistema"])
+def health_check():
+    """Endpoint público de monitoreo de vida"""
+    return {"status": "ok", "timestamp": datetime.datetime.now().isoformat()}
