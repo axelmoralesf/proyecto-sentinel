@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  # 1. API
+  api:
+    build: ./sentinel-api           # Busca el Dockerfile en esa carpeta
+    container_name: sentinel-api-v2
+    ports:
+      - "8000:8000"                 # Exponemos el puerto para que los Agentes puedan mandar datos
+    env_file:
+      - ./sentinel-api/.env         # Inyecta la llave secreta de forma segura
+    depends_on:
+      - db                          # Evita que arranque hasta que la base de datos esté lista
+
+  # 2. Base de datos Cassandra DB
+  db:
+    image: cassandra:latest         # Descarga la imagen oficial de Cassandra
+    container_name: sentinel-cassandra
+    ports:
+      - "9042:9042"                 # El puerto estándar donde Cassandra escucha peticiones
+    environment:
+      - CASSANDRA_CLUSTER_NAME=SentinelCluster
+      - CASSANDRA_MAX_HEAP_SIZE=512M
+      - CASSANDRA_HEAP_NEWSIZE=256M
+      - MAX_HEAP_SIZE=512M
+      - HEAP_NEWSIZE=256M
+    # Límite de memoria para que no congele la computadora
+    deploy:
+      resources:
+        limits:
+          memory: 1.5G
