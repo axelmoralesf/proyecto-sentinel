@@ -18,8 +18,8 @@ def obtener_metricas():
         "server_name": platform.node(),
         "cpu_usage": psutil.cpu_percent(interval=1),
         "ram_usage": psutil.virtual_memory().percent,
-        "gpu_usage": 0.0, # Lo dejamos en 0 por ahora para la prueba
-        "failed_ssh_attempts": 0 # Simulamos 0 ataques
+        "gpu_usage": psutil.gpu_percent() if hasattr(psutil, "gpu_percent") else 0, # Si psutil no tiene gpu_percent, devolvemos 0
+        "failed_ssh_attempts": platform.ssh_failed_attempts() if hasattr(platform, "ssh_failed_attempts") else 0 # Si platform no tiene ssh_failed_attempts, devolvemos 0
     }
 
 def enviar_datos():
