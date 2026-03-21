@@ -73,19 +73,16 @@ resource "aws_instance" "sentinel_server" {
 
   user_data = <<-EOF
               #!/bin/bash
-              # 1. Actualizar el sistema e instalar dependencias base
               dnf update -y
               dnf install -y nginx git docker
               
-              # 2. Instalar docker-compose globalmente en /usr/bin (a prueba de non-interactive shells)
-              curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/bin/docker-compose
-              chmod +x /usr/bin/docker-compose
+              # Instalar el plugin V2 en la ruta nativa de RHEL/Amazon Linux
+              mkdir -p /usr/libexec/docker/cli-plugins/
+              curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/libexec/docker/cli-plugins/docker-compose
+              chmod +x /usr/libexec/docker/cli-plugins/docker-compose
               
-              # 3. Encender Nginx y Docker de inmediato y configurarlos para arranque automático
-              systemctl enable --now nginx
               systemctl enable --now docker
-              
-              # 4. Darle permisos al usuario para usar contenedores sin 'sudo'
+              systemctl enable --now nginx
               usermod -aG docker ec2-user
               EOF
 }
