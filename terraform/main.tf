@@ -88,7 +88,12 @@ resource "aws_instance" "sentinel_server" {
               EOF
 }
 
+resource "aws_eip" "sentinel_eip" {
+  instance = aws_instance.sentinel_server.id
+  domain = "vpc"
+}
+
 output "ip_publica" {
-  value       = aws_instance.sentinel_server.public_ip
+  value       = aws_eip.sentinel_eip.public_ip
   description = "La IP publica para conectarte por SSH"
 }
