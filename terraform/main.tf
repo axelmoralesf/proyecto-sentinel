@@ -81,6 +81,10 @@ resource "aws_instance" "sentinel_server" {
               curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/libexec/docker/cli-plugins/docker-compose
               chmod +x /usr/libexec/docker/cli-plugins/docker-compose
               
+              # Instalar el motor de compilación Buildx
+              curl -SL "https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64" -o /usr/libexec/docker/cli-plugins/docker-buildx
+              chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
+
               systemctl enable --now docker
               systemctl enable --now nginx
               usermod -aG docker ec2-user
