@@ -13,7 +13,6 @@ def init_db():
     print("[+] Conexión a Cassandra establecida con éxito.")
 
 def close_db():
-    global cluster
     if cluster:
         print("[*] Cerrando conexión a Cassandra...")
         cluster.shutdown()
