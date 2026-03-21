@@ -65,4 +65,4 @@ jobs:
             
             # 2. Levantamos la infraestructura con Docker Compose
             # (El --build asegura que la API se actualice, la BD no perderá datos)
-            docker compose up -d --build api db
+            docker-compose up -d --build api db
