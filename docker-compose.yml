@@ -1,5 +1,3 @@
-version: '4'
-
 services:
   # 1. API - Sentinel
   api:
@@ -15,27 +13,3 @@ services:
       resources:
         limits:
           memory: 256M
-    depends_on:
-      - db
-
-  # 2. Base de datos Cassandra
-  db:
-    image: cassandra:latest
-    container_name: sentinel-cassandra
-    ports:
-      - "9042:9042"
-    environment:
-      - CASSANDRA_CLUSTER_NAME=SentinelCluster
-      - CASSANDRA_MAX_HEAP_SIZE=400M
-      - CASSANDRA_HEAP_NEWSIZE=100M
-      - MAX_HEAP_SIZE=400M
-      - HEAP_NEWSIZE=100M
-    deploy:
-      resources:
-        limits:
-          memory: 600M  # Límite físico estricto de Docker
-    volumes:
-      - cassandra_data:/var/lib/cassandra
-
-volumes:
-  cassandra_data:

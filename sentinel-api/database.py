@@ -1,23 +1,37 @@
-from cassandra.cluster import Cluster
+import boto3
 import os
+from botocore.exceptions import ClientError
 
-CASSANDRA_HOST = os.getenv("CASSANDRA_HOST", "db")
-cassandra_session = None
-cluster = None
+AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+DYNAMODB_TABLE = os.getenv("DYNAMODB_TABLE", "sentinel_data")
+dynamodb = None
 
 def init_db():
-    global cluster, cassandra_session
-    print(f"[*] Conectando a Cassandra en: {CASSANDRA_HOST}...")
-    cluster = Cluster([CASSANDRA_HOST])
-    cassandra_session = cluster.connect('sentinel')
-    print("[+] Conexión a Cassandra establecida con éxito.")
+    global dynamodb
+    print(f"[*] Conectando a DynamoDB en región: {AWS_REGION}...")
+    try:
+        dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+        # Verificar que la tabla existe
+        table = dynamodb.Table(DYNAMODB_TABLE)
+        table.load()
+        print(f"[+] Conexión a DynamoDB establecida con éxito. Tabla: {DYNAMODB_TABLE}")
+    except ClientError as e:
+        print(f"[-] Error conectando a DynamoDB: {e}")
+        raise Exception(f"No se pudo conectar a DynamoDB: {e}")
 
 def close_db():
-    if cluster:
-        print("[*] Cerrando conexión a Cassandra...")
-        cluster.shutdown()
+    global dynamodb
+    if dynamodb:
+        print("[*] Cerrando conexión a DynamoDB...")
+        # boto3 maneja conexiones automáticamente
+        dynamodb = None
 
 def get_db():
-    if cassandra_session is None:
+    if dynamodb is None:
         raise Exception("La base de datos no está inicializada")
-    return cassandra_session
+    return dynamodb
+
+def get_table():
+    """Obtiene la tabla de DynamoDB"""
+    db = get_db()
+    return db.Table(DYNAMODB_TABLE)

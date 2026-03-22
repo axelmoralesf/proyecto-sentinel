@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import APIKeyHeader
 from models import TelemetryData
-from database import get_db
+from database import get_table
+from botocore.exceptions import ClientError
 import datetime
 import os
 
@@ -25,22 +26,26 @@ def get_api_key(api_key: str = Depends(api_key_header)):
 @router.post("/")
 def receive_telemetry(data: TelemetryData, api_key: str = Depends(get_api_key)):
     try:
-        session = get_db()
+        table = get_table()
     except Exception:
          raise HTTPException(status_code=500, detail="Base de datos no disponible")
 
-    recorded_at = datetime.datetime.now()
-    query = """
-        INSERT INTO telemetry (server_name, recorded_at, cpu_usage, ram_usage, gpu_usage, failed_ssh_attempts)
-        VALUES (%s, %s, %s, %s, %s, %s)
-    """
+    timestamp = datetime.datetime.now().isoformat()
+    # agent_id es la partition key (server_name)
+    # timestamp es la sort key
+    item = {
+        "agent_id": data.server_name,
+        "timestamp": timestamp,
+        "cpu_usage": data.cpu_usage,
+        "ram_usage": data.ram_usage,
+        "gpu_usage": data.gpu_usage,
+        "failed_ssh_attempts": data.failed_ssh_attempts
+    }
+    
     try:
-        session.execute(query, (
-            data.server_name, recorded_at, data.cpu_usage, 
-            data.ram_usage, data.gpu_usage, data.failed_ssh_attempts
-        ))
-        print(f"[+] Datos guardados | Servidor: {data.server_name}")
-        return {"status": "success", "message": "Telemetría guardada en Cassandra"}
-    except Exception as e:
-        print(f"[-] Error en BD: {e}")
-        raise HTTPException(status_code=500, detail="Error interno al escribir en BD")
+        table.put_item(Item=item)
+        print(f"[+] Datos guardados en DynamoDB | Agent: {data.server_name} | Timestamp: {timestamp}")
+        return {"status": "success", "message": "Telemetría guardada en DynamoDB"}
+    except ClientError as e:
+        print(f"[-] Error en DynamoDB: {e}")
+        raise HTTPException(status_code=500, detail="Error interno al escribir en DynamoDB")

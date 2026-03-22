@@ -8,7 +8,7 @@ A multiplatform distributed telemetry system designed to collect, process, and s
 ## Overview
 
 Sentinel is a multi-agent telemetry system designed to collect infrastructure metrics from distributed servers. \
-Agents gather metrics such as CPU, RAM, and GPU usage, as well as failed SSH login attempts. The collected data is sent to an EC2 virtual machine and routed through a reverse proxy to a FastAPI service, where it is processed and stored in a Cassandra cluster.
+Agents gather metrics such as CPU, RAM, and GPU usage, as well as failed SSH login attempts. The collected data is sent to an EC2 virtual machine and routed through a reverse proxy to a FastAPI service, where it is processed and stored in Amazon DynamoDB.
 
 ## Architecture
 
@@ -28,7 +28,7 @@ The system is divided into the following main blocks:
 
 - **Backend API (FastAPI):** The core of the business logic. It receives payloads from the agent, validates authentication, and processes the information.
 
-- **Database (Apache Cassandra):** A NoSQL wide-column store cluster, ideal for massive write operations and time-series data.
+- **Database (Amazon DynamoDB):** A fully managed NoSQL database service with automatic scaling, high availability, and seamless integration with the AWS ecosystem. Ideal for time-series telemetry data with flexible schema design.
 
 - **Infrastructure (AWS & Terraform):** The virtualized environment where the containers reside, managed in an automated and reproducible way.
 
@@ -44,7 +44,7 @@ The information lifecycle follows a strict process:
 
 4. **Validation:** FastAPI verifies the headers. The API Key is securely validated here (avoiding a hardcoded key on the client side), mitigating the risk of unauthorized access.
 
-5. **Persistence:** If the validation is successful, FastAPI executes the write operation to the Cassandra cluster, where the data is sorted and stored for subsequent analysis.
+5. **Persistence:** If the validation is successful, FastAPI executes the write operation to Amazon DynamoDB, where the data is stored with a partition key (agent_id) and sort key (timestamp) for efficient retrieval and analysis.
 
 ### Technology Stack
 
@@ -54,7 +54,7 @@ The information lifecycle follows a strict process:
 
 - **Reverse Proxy:** NGINX
 
-- **Database:** Apache Cassandra
+- **Database:** Amazon DynamoDB
 
 - **Containers:** Docker & Docker Compose
 
@@ -62,28 +62,33 @@ The information lifecycle follows a strict process:
 
 - **Cloud Provider:** Amazon Web Services (EC2)
 
-### Produccion Recomendations
+### Production Recommendations
 
-Although the current architecture is optimized for portability and leveraging the AWS Free Tier, to scale this system to a massive production environment (thousands of concurrent agents), the following architectural evolutions are proposed:
+The current architecture leverages Amazon DynamoDB and Terraform for automatic infrastructure provisioning. To further scale this system to handle massive traffic and ensure operation in production environments, consider:
 
-1. **Decoupling with Message Brokers (RabbitMQ / Kafka):** Interposing a message queue broker between FastAPI and the database. This acts as a buffer to handle extreme traffic spikes, enabling asynchronous processing, reducing API latency to near zero, and preventing the saturation of direct database connections.
+1. **Decoupling with Message Brokers (RabbitMQ / Kafka):** Interposing a message queue broker between FastAPI and DynamoDB. This acts as a buffer to handle extreme traffic spikes, enabling asynchronous processing, reducing API latency to near zero, and preventing the saturation of direct database connections.
 
-2. **Migration to a Managed Database (Amazon DynamoDB):** Replacing the local Cassandra cluster with a fully managed, serverless service like DynamoDB. This eliminates the operational overhead of maintaining database containers, ensuring automatic horizontal scalability and native high availability within the AWS ecosystem.
+2. **Multi-Region Replication:** Enabling DynamoDB global tables to replicate data across multiple AWS regions for improved availability and disaster recovery.
 
 ## Project Structure
 
 ```
 proyecto-sentinel/
-├── docker-compose.yml          # Orchestrates the API and Cassandra services
+├── docker-compose.yml          # Orchestrates the API service
 ├── docs/                       # Documentation
 ├── terraform/
-│   └── main.tf                 # AWS infrastructure provisioning (EC2, security group, key pair)
+│   ├── main.tf                 # Root module orchestrating infrastructure
+│   └── modules/
+│       ├── compute/            # EC2, key pair, and elastic IP
+│       ├── security/           # Security groups and network rules
+│       ├── iam/                # IAM roles and policies for EC2
+│       └── database/           # DynamoDB table provisioning
 └── sentinel-api/
     ├── Dockerfile              # Container image for the FastAPI service
     ├── requirements.txt        # Pinned Python dependencies
     ├── main.py                 # FastAPI app entry point; registers routers and DB lifecycle hooks
     ├── models.py               # Pydantic schema for incoming telemetry payloads
-    ├── database.py             # Cassandra connection management (init, session, teardown)
+    ├── database.py             # DynamoDB connection management (init, table, teardown)
     ├── agent/
     │   └── agent.py            # Standalone client script: collects and ships metrics to the API
     └── routers/
@@ -115,7 +120,7 @@ On success, the API responds with:
 ```json
 {
   "status": "success",
-  "message": "Telemetría guardada en Cassandra"
+  "message": "Telemetría guardada en DynamoDB"
 }
 ```
 
@@ -125,29 +130,49 @@ On success, the API responds with:
 
 - [Docker](https://docs.docker.com/get-docker/) and Docker Compose
 - Python 3.11+ (for running the agent locally)
-- An `.env` file inside `sentinel-api/` with the following variable:
+- [Terraform](https://www.terraform.io/downloads.html) (for infrastructure provisioning)
+- AWS credentials configured (for DynamoDB and EC2 access)
+- An `.env` file inside `sentinel-api/` with the following variables:
 
 ```env
 SENTINEL_API_KEY=your_secret_key_here
+AWS_REGION=us-east-1
+DYNAMODB_TABLE=sentinel_data
 ```
 
-### 1. Start the Backend Stack
+### 1. Provision Infrastructure with Terraform
+
+```bash
+cd terraform
+terraform init
+terraform plan
+terraform apply
+```
+
+This creates:
+- EC2 instance with Docker and required tools
+- Security group with SSH and HTTP access
+- DynamoDB table for telemetry storage
+- IAM role and instance profile for EC2 access to DynamoDB
+
+### 2. Start the Backend Stack
 
 ```bash
 docker compose up --build -d
 ```
 
-This launches two containers:
+This launches the FastAPI service container:
 - `sentinel-api-v3` — the FastAPI service on port `8000`
-- `sentinel-cassandra` — the Cassandra database on port `9042`
 
-### 2. Verify the API is Running
+**Note:** The API will connect to DynamoDB using AWS credentials from the EC2 instance or your local AWS configuration.
+
+### 3. Verify the API is Running
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-### 3. Run the Agent
+### 4. Run the Agent
 
 On any machine you want to monitor, install the agent dependencies and execute it:
 
