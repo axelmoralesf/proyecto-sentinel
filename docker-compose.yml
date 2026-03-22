@@ -1,33 +1,41 @@
-version: '3.8'
+version: '4'
 
 services:
-  # 1. API
+  # 1. API - Sentinel
   api:
-    build: ./sentinel-api           # Busca el Dockerfile en esa carpeta
+    build: ./sentinel-api
     container_name: sentinel-api-v3
     ports:
-      - "8000:8000"                 # Exponemos el puerto para que los Agentes puedan mandar datos
+      - "8000:8000"
     env_file:
       - ./sentinel-api/.env
     environment:
-      - PYTHONUNBUFFERED=1        # Inyecta la llave secreta de forma segura
+      - PYTHONUNBUFFERED=1
+    deploy:
+      resources:
+        limits:
+          memory: 256M
     depends_on:
-      - db                          # Evita que arranque hasta que la base de datos esté lista
+      - db
 
-  # 2. Base de datos Cassandra DB
+  # 2. Base de datos Cassandra
   db:
-    image: cassandra:latest         # Descarga la imagen oficial de Cassandra
+    image: cassandra:latest
     container_name: sentinel-cassandra
     ports:
-      - "9042:9042"                 # El puerto estándar donde Cassandra escucha peticiones
+      - "9042:9042"
     environment:
       - CASSANDRA_CLUSTER_NAME=SentinelCluster
-      - CASSANDRA_MAX_HEAP_SIZE=512M
-      - CASSANDRA_HEAP_NEWSIZE=256M
-      - MAX_HEAP_SIZE=512M
-      - HEAP_NEWSIZE=256M
+      - CASSANDRA_MAX_HEAP_SIZE=400M
+      - CASSANDRA_HEAP_NEWSIZE=100M
+      - MAX_HEAP_SIZE=400M
+      - HEAP_NEWSIZE=100M
+    deploy:
+      resources:
+        limits:
+          memory: 600M  # Límite físico estricto de Docker
     volumes:
-      - cassandra_data:/var/lib/cassandra  # Persistencia de datos
-    # Límite de memoria para que no congele la computadora
+      - cassandra_data:/var/lib/cassandra
+
 volumes:
   cassandra_data:
