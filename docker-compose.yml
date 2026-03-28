@@ -13,3 +13,19 @@ services:
       resources:
         limits:
           memory: 256M
+          
+  # 2. Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: sentinel-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      # Instala el conector de DynamoDB automáticamente
+      - GF_INSTALL_PLUGINS=grafana-dynamodb-datasource
+    volumes:
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+
+volumes:
+  grafana_data:

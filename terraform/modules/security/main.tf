@@ -16,6 +16,14 @@ resource "aws_security_group" "this" {
     cidr_blocks = [var.http_cidr]
   }
 
+  ingress {
+    description = "Grafana Dashboard"
+    from_port = 3000
+    to_port   = 3000
+    protocol  = "tcp"
+    cidr_blocks = [var.http_cidr]
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
