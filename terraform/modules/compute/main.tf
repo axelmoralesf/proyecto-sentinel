@@ -49,6 +49,27 @@ resource "aws_instance" "sentinel_server" {
               curl -SL "https://github.com/docker/buildx/releases/download/v0.17.1/buildx-v0.17.1.linux-amd64" -o /usr/libexec/docker/cli-plugins/docker-buildx
               chmod +x /usr/libexec/docker/cli-plugins/docker-buildx
 
+              # --- CREACIÓN AUTOMATIZADA DEL PROXY NGINX ---
+              cat << 'NGINX_CONF' > /etc/nginx/conf.d/sentinel.conf
+              server {
+                  listen 80;
+                  listen [::]:80;
+                  server_name _; 
+
+                  underscores_in_headers on;
+
+                  location / {
+                      proxy_pass http://127.0.0.1:8000;
+                      
+                      proxy_set_header Host \$host;
+                      proxy_set_header X-Real-IP \$remote_addr;
+                      proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+                      proxy_set_header X-Forwarded-Proto \$scheme;
+                    }
+                }
+              NGINX_CONF
+
+              # Iniciar servicios (Nginx leerá el archivo recién creado al arrancar)
               systemctl enable --now docker
               systemctl enable --now nginx
               usermod -aG docker ec2-user
