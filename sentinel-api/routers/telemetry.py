@@ -3,6 +3,7 @@ from fastapi.security import APIKeyHeader
 from models import TelemetryData
 from database import get_table
 from botocore.exceptions import ClientError
+from decimal import Decimal
 import datetime
 import os
 
@@ -36,9 +37,9 @@ def receive_telemetry(data: TelemetryData, api_key: str = Depends(get_api_key)):
     item = {
         "agent_id": data.server_name,
         "timestamp": timestamp,
-        "cpu_usage": data.cpu_usage,
-        "ram_usage": data.ram_usage,
-        "gpu_usage": data.gpu_usage,
+        "cpu_usage": Decimal(str(data.cpu_usage)),
+        "ram_usage": Decimal(str(data.ram_usage)),
+        "gpu_usage": Decimal(str(data.gpu_usage)),
         "failed_ssh_attempts": data.failed_ssh_attempts
     }
     
