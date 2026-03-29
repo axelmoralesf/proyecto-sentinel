@@ -21,8 +21,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # Instala el conector de DynamoDB automáticamente
-      - GF_INSTALL_PLUGINS=grafana-dynamodb-datasource
+      # Instala Infinity para leer la API
+      - GF_INSTALL_PLUGINS=yesoreyeram-infinity-datasource
     volumes:
       - grafana_data:/var/lib/grafana
     restart: unless-stopped
