@@ -35,7 +35,39 @@ The system is divided into the following main blocks:
 - **Infrastructure (AWS & Terraform):** The virtualized environment where the containers reside, managed in an automated and reproducible way.
 
 ### Data Flow
+```mermaid
+sequenceDiagram
+    autonumber
+    actor A as Agent (Python)
+    participant N as NGINX (Proxy)
+    participant F as FastAPI (Backend)
+    participant D as DynamoDB (AWS)
+    participant G as Grafana (Infinity)
 
+    rect rgb(30, 30, 30)
+    Note right of A: 1. Ingestion Flow (Write)
+    A->>N: POST /telemetry (JSON + X-API-Key)
+    N->>F: Routes traffic (Internal Network)
+    
+    alt Invalid API Key
+        F-->>A: 401 Unauthorized
+    else Valid API Key
+        F->>D: put_item(agent_id, timestamp, metrics)
+        D-->>F: Save confirmation
+        F-->>A: 200 OK {"status": "success"}
+    end
+    end
+
+    rect rgb(40, 40, 40)
+    Note right of F: 2. Visualization Flow (Read)
+    G->>F: GET /telemetry (Headers: X-API-Key)
+    F->>D: query(agent_id) for all agents
+    D-->>F: Returns records (Decimals)
+    F->>F: Format Decimals to Float/Int
+    F-->>G: Clean JSON Array
+    Note over G: Renders dashboards in real-time
+    end
+```
 The information lifecycle follows a strict process:
 
 1. **Collection:** The agent extracts local metrics (CPU, RAM, GPU usage) and logs failed SSH connection attempts.
