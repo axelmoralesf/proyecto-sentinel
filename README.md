@@ -2,13 +2,13 @@
 A multiplatform distributed telemetry system designed to collect, process, and store metrics from remote server infrastructure.
 <center>
 
-![Sentinel Arquitecture](docs/Arquitecture.svg)
+![Sentinel Arquitecture](docs/Dashboard.png)
 </center>
 
 ## Overview
 
 Sentinel is a multi-agent telemetry system designed to collect infrastructure metrics from distributed servers. \
-Agents gather metrics such as CPU, RAM, and GPU usage, as well as failed SSH login attempts. The collected data is sent to an EC2 virtual machine and routed through a reverse proxy to a FastAPI service, where it is processed and stored in Amazon DynamoDB.
+Agents gather metrics such as CPU, RAM, and GPU usage, as well as failed SSH login attempts. The collected data is sent to an EC2 virtual machine and routed through a reverse proxy to a FastAPI service, where it is processed and stored in Amazon DynamoDB. For observability, Grafana consumes telemetry through the Infinity datasource plugin connected to the API and renders real-time dashboards.
 
 ## Architecture
 
@@ -22,13 +22,15 @@ The project implements a client-server architecture geared towards efficient tel
 
 The system is divided into the following main blocks:
 
-- **Agent (Client):** A lightweight collector script running on target machines to extract hardware metrics and security logs.
+- **Agent (Client):** A modular telemetry client running on target machines to collect hardware metrics and security events, then send them to the API.
 
 - **Reverse Proxy (NGINX):** Acts as the single entry point to the server. It receives external traffic and routes it internally, hiding the network topology and container ports for security purposes.
 
 - **Backend API (FastAPI):** The core of the business logic. It receives payloads from the agent, validates authentication, and processes the information.
 
 - **Database (Amazon DynamoDB):** A fully managed NoSQL database service with automatic scaling, high availability, and seamless integration with the AWS ecosystem. Ideal for time-series telemetry data with flexible schema design.
+
+- **Visualization (Grafana + Infinity Plugin):** Grafana builds dashboards by querying the FastAPI telemetry endpoint via the Infinity datasource plugin, using API-key authenticated requests.
 
 - **Infrastructure (AWS & Terraform):** The virtualized environment where the containers reside, managed in an automated and reproducible way.
 
@@ -38,13 +40,19 @@ The information lifecycle follows a strict process:
 
 1. **Collection:** The agent extracts local metrics (CPU, RAM, GPU usage) and logs failed SSH connection attempts.
 
-2. **Transmission:** The data is sent to the public IP of the EC2 instance.
+2. **Ingestion Request:** The agent sends telemetry data to the EC2 public endpoint.
 
-3. **Interception:** NGINX receives the web request and securely forwards it to the internal API container.
+3. **Interception:** NGINX receives the request and securely forwards it to the internal FastAPI container.
 
-4. **Validation:** FastAPI verifies the headers. The API Key is securely validated here (avoiding a hardcoded key on the client side), mitigating the risk of unauthorized access.
+4. **Validation & Processing:** FastAPI validates the API key and payload schema.
 
-5. **Persistence:** If the validation is successful, FastAPI executes the write operation to Amazon DynamoDB, where the data is stored with a partition key (agent_id) and sort key (timestamp) for efficient retrieval and analysis.
+5. **Persistence:** FastAPI writes validated telemetry to Amazon DynamoDB using `agent_id` (partition key) and `timestamp` (sort key).
+
+6. **Visualization Query:** Grafana (Infinity datasource) sends authenticated `GET /telemetry/` requests to FastAPI.
+
+7. **Read Path:** FastAPI retrieves telemetry records from DynamoDB and returns normalized JSON data to Grafana.
+
+8. **Dashboards:** Grafana renders infrastructure and security metrics in real-time panels for monitoring and analysis.
 
 ### Technology Stack
 
@@ -55,6 +63,10 @@ The information lifecycle follows a strict process:
 - **Reverse Proxy:** NGINX
 
 - **Database:** Amazon DynamoDB
+
+- **Visualization:** Grafana
+
+- **Grafana Datasource Plugin:** yesoreyeram-infinity-datasource
 
 - **Containers:** Docker & Docker Compose
 
@@ -74,7 +86,7 @@ The current architecture leverages Amazon DynamoDB and Terraform for automatic i
 
 ```
 proyecto-sentinel/
-├── docker-compose.yml          # Orchestrates the API service
+├── docker-compose.yml          # Orchestrates FastAPI and Grafana services
 ├── docs/                       # Documentation
 ├── terraform/
 │   ├── main.tf                 # Root module orchestrating infrastructure
@@ -155,14 +167,15 @@ This creates:
 - DynamoDB table for telemetry storage
 - IAM role and instance profile for EC2 access to DynamoDB
 
-### 2. Start the Backend Stack
+### 2. Start the Backend and Visualization Stack
 
 ```bash
 docker compose up --build -d
 ```
 
-This launches the FastAPI service container:
+This launches the service containers:
 - `sentinel-api-v3` — the FastAPI service on port `8000`
+- `sentinel-grafana` — Grafana on port `3000` (Infinity datasource plugin installed at startup)
 
 **Note:** The API will connect to DynamoDB using AWS credentials from the EC2 instance or your local AWS configuration.
 
@@ -172,7 +185,17 @@ This launches the FastAPI service container:
 curl http://localhost:8000/health
 ```
 
-### 4. Run the Agent
+### 4. Access Grafana
+
+Open Grafana in your browser:
+
+```bash
+http://localhost:3000
+```
+
+Then configure a dashboard using the Infinity datasource against the API telemetry endpoint.
+
+### 5. Run the Agent
 
 On any machine you want to monitor, install the agent dependencies and execute it:
 
@@ -190,9 +213,9 @@ This project is in continuous evolution. While the current version provides a so
 
 - [ ] **Message Broker Integration:** Implement Apache Kafka as a messaging queue between the FastAPI backend and the database. This will allow the system to handle high concurrency, manage traffic spikes, and enable asynchronous data processing.
 
-- [ ] **CI/CD Pipelines:** Establish Continuous Integration and Continuous Deployment (CI/CD) workflows (e.g., using GitHub Actions) to automate testing, container image builds, and the Terraform infrastructure provisioning.
+- [x] **CI/CD Pipelines:** Establish Continuous Integration and Continuous Deployment (CI/CD) workflows (e.g., using GitHub Actions) to automate testing, container image builds, and the Terraform infrastructure provisioning.
 
-- [ ] **Data Visualization:** Deploy Grafana to create interactive, real-time dashboards. This will transform the raw telemetry data and security logs into beautiful, easy-to-monitor visual metrics.
+- [x] **Data Visualization:** Deploy Grafana to create interactive, real-time dashboards. This will transform the raw telemetry data and security logs into beautiful, easy-to-monitor visual metrics.
 
 Continuous Improvement: The architecture is designed to be extensible, leaving room for future additions such as real-time alerting systems or migrating to managed cloud services as new requirements arise.
 
